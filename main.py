@@ -1,61 +1,62 @@
 import os
 import time
 import threading
-from flask import Flask
+import asyncio
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 import yt_dlp
 
-# ================== CONFIG ==================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 last_used = {}
 
-# ================== WEB SERVER (for Render) ==================
-web_app = Flask(__name__)
 
-@web_app.route('/')
-def home():
-    return "Bot is running!"
+# ---------------- HTTP SERVER (Render health check) ----------------
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/plain')
+        self.end_headers()
+        self.wfile.write(b"Bot is running")
 
-def run_web():
-    port = int(os.environ.get("PORT", 10000))
-    web_app.run(host="0.0.0.0", port=port)
 
-# ================== FILE DELETE ==================
+def run_server():
+    port = int(os.environ.get("PORT", 8080))
+    server = HTTPServer(("0.0.0.0", port), Handler)
+    print(f"🌐 Web server running on port {port}")
+    server.serve_forever()
+
+
+# ---------------- TELEGRAM BOT ----------------
 def delete_file_later(path, delay=65):
     def delete():
         if os.path.exists(path):
-            try:
-                os.remove(path)
-            except:
-                pass
+            os.remove(path)
     threading.Timer(delay, delete).start()
 
-# ================== START COMMAND ==================
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
         "🎵 *YouTube MP3 Bot*\n\n"
-        "Convert YouTube videos to MP3 instantly.\n\n"
-        "📌 Send any YouTube link\n"
-        "⚡ Fast download\n"
-        "🎧 High quality audio\n\n"
-        "Just paste link and enjoy 🚀"
+        "Send any YouTube link\n"
+        "Fast MP3 conversion ⚡\n"
+        "High quality 🎧\n"
     )
     await update.message.reply_text(text, parse_mode="Markdown")
 
-# ================== DOWNLOAD ==================
+
 def download_mp3(url):
     ydl_opts = {
         'format': 'bestaudio/best',
-        'outtmpl': '%(id)s.%(ext)s',  # SAFE filename
+        'outtmpl': '%(title)s.%(ext)s',
         'ffmpeg_location': '/usr/bin/ffmpeg',
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
             'preferredquality': '128',
         }],
-        'socket_timeout': 120,
+        'socket_timeout': 30,
         'quiet': True,
         'noplaylist': True
     }
@@ -65,21 +66,19 @@ def download_mp3(url):
         filename = ydl.prepare_filename(info)
         return filename.rsplit('.', 1)[0] + ".mp3"
 
-# ================== HANDLE MESSAGE ==================
+
 async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     url = update.message.text.strip()
 
-    # Rate limit
     if user_id in last_used and time.time() - last_used[user_id] < 10:
-        await update.message.reply_text("Wait 10 sec ⏳")
+        await update.message.reply_text("⏳ Wait 10 sec")
         return
 
     last_used[user_id] = time.time()
 
-    # Validate URL
     if "youtube.com" not in url and "youtu.be" not in url:
-        await update.message.reply_text("Send valid YouTube link")
+        await update.message.reply_text("❌ Invalid YouTube link")
         return
 
     try:
@@ -94,24 +93,24 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         delete_file_later(file_path, 65)
 
-    except Exception:
-        await update.message.reply_text("Failed to download. Try another link.")
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error: {str(e)}")
 
-# ================== MAIN BOT ==================
-def main():
-    app = ApplicationBuilder()\
-        .token(BOT_TOKEN)\
-        .read_timeout(120)\
-        .write_timeout(120)\
-        .build()
+
+# ---------------- MAIN ----------------
+async def run_bot():
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle))
 
-    print("Bot running...")
-    app.run_polling()
+    print("🤖 Bot started")
+    await app.run_polling()
 
-# ================== START EVERYTHING ==================
+
 if __name__ == "__main__":
-    threading.Thread(target=run_web).start()
-    main()
+    # Run HTTP server in background
+    threading.Thread(target=run_server, daemon=True).start()
+
+    # Run Telegram bot
+    asyncio.run(run_bot())
