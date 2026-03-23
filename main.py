@@ -23,7 +23,6 @@ class Handler(BaseHTTPRequestHandler):
 def run_server():
     port = int(os.environ.get("PORT", 8080))
     server = HTTPServer(("0.0.0.0", port), Handler)
-    print(f"🌐 Server running on port {port}")
     server.serve_forever()
 
 
@@ -42,10 +41,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "━━━━━━━━━━━━━━━━━━━━━━\n\n"
         "📥 Send any YouTube link\n"
         "⚡ Fast processing\n"
-        "🎧 High-quality MP3 output\n"
-        "🚀 Smooth & reliable download\n\n"
+        "🎧 High-quality MP3 output\n\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n"
-        "💡 Paste your link below"
+        "🚀 Paste your link below"
     )
     await update.message.reply_text(text, parse_mode="Markdown")
 
@@ -53,12 +51,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ---------------- DOWNLOAD ----------------
 def download_mp3(url):
     ydl_opts = {
-        'format': 'bestaudio[ext=m4a]/bestaudio/best/bestvideo+bestaudio',
+        'format': 'bestaudio[ext=m4a]/bestaudio[ext=mp4]/bestaudio/best',
         'outtmpl': '%(title)s.%(ext)s',
         'ffmpeg_location': '/usr/bin/ffmpeg',
         'cookiefile': 'cookies.txt',
 
-        # 🔥 bypass YouTube restrictions
         'extractor_args': {
             'youtube': {
                 'player_client': ['android', 'web']
@@ -77,10 +74,19 @@ def download_mp3(url):
         'noplaylist': True
     }
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=True)
-        filename = ydl.prepare_filename(info)
-        return filename.rsplit('.', 1)[0] + ".mp3"
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            filename = ydl.prepare_filename(info)
+            return filename.rsplit('.', 1)[0] + ".mp3"
+
+    except Exception:
+        # 🔁 fallback attempt without ext filter
+        ydl_opts['format'] = 'bestaudio/best'
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            filename = ydl.prepare_filename(info)
+            return filename.rsplit('.', 1)[0] + ".mp3"
 
 
 # ---------------- HANDLER ----------------
@@ -88,14 +94,12 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     url = update.message.text.strip()
 
-    # cooldown
     if user_id in last_used and time.time() - last_used[user_id] < 10:
         await update.message.reply_text("⏳ Wait 10 sec")
         return
 
     last_used[user_id] = time.time()
 
-    # validate
     if "youtube.com" not in url and "youtu.be" not in url:
         await update.message.reply_text("❌ Invalid YouTube link")
         return
@@ -118,10 +122,8 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ---------------- MAIN ----------------
 if __name__ == "__main__":
-    # start web server
     threading.Thread(target=run_server, daemon=True).start()
 
-    # start bot
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
