@@ -35,7 +35,7 @@ def delete_file_later(path, delay=65):
     threading.Timer(delay, delete).start()
 
 
-# ---------------- START COMMAND ----------------
+# ---------------- START ----------------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
         "🎵 *YouTube MP3 Bot*\n"
@@ -45,7 +45,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🎧 High-quality MP3 output\n"
         "🚀 Smooth & reliable download\n\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n"
-        "💡 Just paste your link below and get audio instantly!"
+        "💡 Paste your link below"
     )
     await update.message.reply_text(text, parse_mode="Markdown")
 
@@ -53,10 +53,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ---------------- DOWNLOAD ----------------
 def download_mp3(url):
     ydl_opts = {
-        'format': 'bestaudio[ext=m4a]/bestaudio/best',
+        'format': 'bestaudio[ext=m4a]/bestaudio/best/bestvideo+bestaudio',  # ✅ FIXED
         'outtmpl': '%(title)s.%(ext)s',
         'ffmpeg_location': '/usr/bin/ffmpeg',
         'cookiefile': 'cookies.txt',
+        'merge_output_format': 'mp3',
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
@@ -73,19 +74,17 @@ def download_mp3(url):
         return filename.rsplit('.', 1)[0] + ".mp3"
 
 
-# ---------------- MESSAGE HANDLER ----------------
+# ---------------- HANDLER ----------------
 async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     url = update.message.text.strip()
 
-    # cooldown
     if user_id in last_used and time.time() - last_used[user_id] < 10:
         await update.message.reply_text("⏳ Wait 10 sec")
         return
 
     last_used[user_id] = time.time()
 
-    # validate link
     if "youtube.com" not in url and "youtu.be" not in url:
         await update.message.reply_text("❌ Invalid YouTube link")
         return
@@ -108,10 +107,8 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ---------------- MAIN ----------------
 if __name__ == "__main__":
-    # start web server for Render
     threading.Thread(target=run_server, daemon=True).start()
 
-    # start bot
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
