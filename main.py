@@ -27,7 +27,7 @@ def run_server():
     server.serve_forever()
 
 
-# ---------------- BOT ----------------
+# ---------------- FILE CLEANUP ----------------
 def delete_file_later(path, delay=65):
     def delete():
         if os.path.exists(path):
@@ -35,22 +35,28 @@ def delete_file_later(path, delay=65):
     threading.Timer(delay, delete).start()
 
 
+# ---------------- START COMMAND ----------------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
-        "🎵 *YouTube MP3 Bot*\n\n"
-        "Send YouTube link\n"
-        "Fast MP3 ⚡\n"
-        "High quality 🎧\n"
+        "🎵 *YouTube MP3 Bot*\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "📥 Send any YouTube link\n"
+        "⚡ Fast processing\n"
+        "🎧 High-quality MP3 output\n"
+        "🚀 Smooth & reliable download\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "💡 Just paste your link below and get audio instantly!"
     )
     await update.message.reply_text(text, parse_mode="Markdown")
 
 
+# ---------------- DOWNLOAD ----------------
 def download_mp3(url):
     ydl_opts = {
-        'format': 'bestaudio/best',
+        'format': 'bestaudio[ext=m4a]/bestaudio/best',
         'outtmpl': '%(title)s.%(ext)s',
         'ffmpeg_location': '/usr/bin/ffmpeg',
-        'cookiefile': 'cookies.txt',  # ✅ IMPORTANT FIX
+        'cookiefile': 'cookies.txt',
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
@@ -67,16 +73,19 @@ def download_mp3(url):
         return filename.rsplit('.', 1)[0] + ".mp3"
 
 
+# ---------------- MESSAGE HANDLER ----------------
 async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     url = update.message.text.strip()
 
+    # cooldown
     if user_id in last_used and time.time() - last_used[user_id] < 10:
         await update.message.reply_text("⏳ Wait 10 sec")
         return
 
     last_used[user_id] = time.time()
 
+    # validate link
     if "youtube.com" not in url and "youtu.be" not in url:
         await update.message.reply_text("❌ Invalid YouTube link")
         return
@@ -99,7 +108,7 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ---------------- MAIN ----------------
 if __name__ == "__main__":
-    # start web server
+    # start web server for Render
     threading.Thread(target=run_server, daemon=True).start()
 
     # start bot
