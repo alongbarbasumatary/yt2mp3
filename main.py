@@ -11,7 +11,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 last_used = {}
 
 
-# ---------------- HTTP SERVER (Render health check) ----------------
+# ---------------- HTTP SERVER ----------------
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -27,7 +27,7 @@ def run_server():
     server.serve_forever()
 
 
-# ---------------- BOT LOGIC ----------------
+# ---------------- BOT ----------------
 def delete_file_later(path, delay=65):
     def delete():
         if os.path.exists(path):
@@ -50,6 +50,7 @@ def download_mp3(url):
         'format': 'bestaudio/best',
         'outtmpl': '%(title)s.%(ext)s',
         'ffmpeg_location': '/usr/bin/ffmpeg',
+        'cookiefile': 'cookies.txt',  # ✅ IMPORTANT FIX
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
@@ -70,14 +71,12 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     url = update.message.text.strip()
 
-    # cooldown
     if user_id in last_used and time.time() - last_used[user_id] < 10:
         await update.message.reply_text("⏳ Wait 10 sec")
         return
 
     last_used[user_id] = time.time()
 
-    # validate
     if "youtube.com" not in url and "youtu.be" not in url:
         await update.message.reply_text("❌ Invalid YouTube link")
         return
@@ -100,10 +99,10 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ---------------- MAIN ----------------
 if __name__ == "__main__":
-    # Start HTTP server (required for Render)
+    # start web server
     threading.Thread(target=run_server, daemon=True).start()
 
-    # Start Telegram bot (NO asyncio.run)
+    # start bot
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
