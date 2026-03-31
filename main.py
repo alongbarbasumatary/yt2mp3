@@ -50,39 +50,39 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ---------------- DOWNLOAD ----------------
 def download_mp3(url):
+    # Basic options – works for all YouTube videos
     ydl_opts = {
-        'format': 'bestaudio[ext=m4a]/bestaudio[ext=mp4]/bestaudio/best',
+        'format': 'bestaudio/best',               # pick the best audio regardless of container
         'outtmpl': '%(title)s.%(ext)s',
-        'ffmpeg_location': '/usr/bin/ffmpeg',
-        'cookiefile': 'cookies.txt',
-
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['android', 'web']
-            }
-        },
-
+        'ffmpeg_location': '/usr/bin/ffmpeg',    # adjust if your ffmpeg is elsewhere
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
             'preferredquality': '128',
         }],
-
         'merge_output_format': 'mp3',
         'socket_timeout': 30,
         'quiet': True,
-        'noplaylist': True
+        'noplaylist': True,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android', 'web']   # helps avoid age restrictions
+            }
+        }
     }
+
+    # Only add cookiefile if it exists – otherwise yt-dlp may complain
+    if os.path.exists('cookies.txt'):
+        ydl_opts['cookiefile'] = 'cookies.txt'
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
             return filename.rsplit('.', 1)[0] + ".mp3"
-
     except Exception:
-        # 🔁 fallback attempt without ext filter
-        ydl_opts['format'] = 'bestaudio/best'
+        # Fallback: try without any extra filters (rarely needed)
+        ydl_opts['format'] = 'bestaudio/best'   # already same, but keep the structure
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
