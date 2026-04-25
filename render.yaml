@@ -1,7 +1,0 @@
-services:
-  - type: worker
-    name: yt-mp3-telegram-bot
-    runtime: python
-    buildCommand: "./build.sh"
-    startCommand: "python app.py"
-    plan: free
