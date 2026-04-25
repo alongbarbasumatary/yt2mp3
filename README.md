@@ -1,47 +1,45 @@
 # YT → MP3 Bot
 
-A self-hosted YouTube to MP3 downloader web service, ready to deploy on Render.
+## Fix: "Sign in to confirm you're not a bot"
 
-## Files
+The updated app.py already uses the **Android innertube client** which bypasses most bot checks automatically. If the error persists, add a cookies.txt file:
 
-| File | Purpose |
-|---|---|
-| `app.py` | Flask app + frontend UI |
-| `requirements.txt` | Python dependencies |
-| `build.sh` | Installs ffmpeg + pip deps on Render |
-| `render.yaml` | Render deploy config |
+### Step 1 — Export cookies from your browser
+1. Install **"Get cookies.txt LOCALLY"** Chrome/Firefox extension
+2. Go to youtube.com — make sure you're **logged in**
+3. Click the extension → **Export cookies for this tab**
+4. Save as `cookies.txt`
 
-## Deploy to Render (Free Tier)
+### Step 2 — Add to Render (pick one)
 
-1. Push this folder to a **GitHub repo**.
-2. Go to [render.com](https://render.com) → **New → Web Service**.
-3. Connect your GitHub repo.
-4. Set:
-   - **Build Command:** `./build.sh`
-   - **Start Command:** `python app.py`
-   - **Environment:** Python 3
-5. Click **Deploy**. Done!
+**Option A: Secret File (recommended)**
+- Render dashboard → your service → **Environment** → **Secret Files**
+- Filename: `cookies.txt`
+- Contents: paste your cookies.txt content
+- Mount path: `/opt/render/project/src/cookies.txt`
+- Redeploy ✓
 
-> The `render.yaml` handles all config automatically if you use "New → Blueprint".
+**Option B: Commit to repo**
+- Put `cookies.txt` in your repo root alongside `app.py`
+- Add to `.gitignore` so it's not public
+- Push & redeploy ✓
 
-## How It Works
+---
 
-- User pastes a YouTube URL → hits **GRAB**
-- Backend starts a background thread with `yt-dlp`
-- Frontend polls `/api/status/<job_id>` every 1.5s
-- When ready, **DOWNLOAD MP3** button appears
-- Files auto-delete after 10 minutes
+## Deploy
 
-## API Endpoints
+1. Push folder to GitHub
+2. Render → New → Web Service → connect repo
+3. Build Command: `./build.sh`
+4. Start Command: `python app.py`
+5. Deploy
 
-| Method | Path | Description |
+## API
+
+| Method | Path | Notes |
 |---|---|---|
-| POST | `/api/start` | `{"url": "..."}` → `{"job_id": "..."}` |
-| GET | `/api/status/<id>` | Returns status + progress % |
-| GET | `/api/download/<id>` | Streams the MP3 file |
+| POST | `/api/start` | `{"url":"..."}` → `{"job_id":"..."}` |
+| GET | `/api/status/<id>` | progress polling |
+| GET | `/api/download/<id>` | download MP3 |
 
-## Notes
-
-- Render free tier spins down after inactivity — first request may be slow (~30s).
-- `/tmp/downloads` is used for temporary storage (ephemeral on Render).
-- For personal use only. Respect YouTube's Terms of Service and copyright law.
+Files auto-delete after 10 min. Personal use only.
