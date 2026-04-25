@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: yt-mp3-bot
+    runtime: python
+    buildCommand: "./build.sh"
+    startCommand: "python app.py"
+    envVars:
+      - key: PORT
+        value: 10000
+    plan: free
