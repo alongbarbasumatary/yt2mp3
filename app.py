@@ -9,7 +9,7 @@ import yt_dlp
 app = Flask(__name__)
 
 DOWNLOAD_DIR = "/tmp/downloads"
-COOKIES_FILE = "/opt/render/project/src/cookies.txt"  # optional cookies.txt
+COOKIES_FILE = "/opt/render/project/src/cookies.txt"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 jobs = {}
@@ -23,9 +23,10 @@ def cleanup_file(path, delay=600):
             pass
     threading.Thread(target=_delete, daemon=True).start()
 
-def build_ydl_opts(output_template, progress_hook):
+def build_ydl_opts(output_template, progress_hook, player_client=None):
     opts = {
-        "format": "bestaudio/bestvideo/best",
+        # No format filter — grab whatever is available, ffmpeg converts it
+        "format": "bestaudio/best",
         "outtmpl": output_template,
         "postprocessors": [{
             "key": "FFmpegExtractAudio",
@@ -43,17 +44,11 @@ def build_ydl_opts(output_template, progress_hook):
                 "Chrome/124.0.0.0 Safari/537.36"
             ),
         },
-        # Use Android + web innertube clients — bypasses bot check without cookies
-        "extractor_args": {
-            "youtube": {
-                "player_client": ["android", "web"],
-            }
-        },
         "retries": 5,
         "fragment_retries": 5,
-        "ignoreerrors": False,
-        "allow_unplayable_formats": False,
     }
+    if player_client:
+        opts["extractor_args"] = {"youtube": {"player_client": player_client}}
     if os.path.exists(COOKIES_FILE):
         opts["cookiefile"] = COOKIES_FILE
     return opts
@@ -71,25 +66,44 @@ def download_mp3(job_id, url):
         elif d["status"] == "finished":
             jobs[job_id]["progress"] = 95
 
-    try:
-        ydl_opts = build_ydl_opts(output_template, progress_hook)
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            title = info.get("title", "audio")
-            safe_title = re.sub(r'[\\/*?:"<>|]', "", title)[:80]
-            mp3_path = os.path.join(DOWNLOAD_DIR, f"{job_id}.mp3")
-            jobs[job_id].update({
-                "status": "done",
-                "progress": 100,
-                "filename": mp3_path,
-                "title": safe_title,
-            })
-            cleanup_file(mp3_path)
-    except Exception as e:
-        err = str(e)
-        if "Sign in to confirm" in err or "bot" in err.lower():
-            err = "YouTube bot-check triggered. Add a cookies.txt file — see README."
-        jobs[job_id].update({"status": "error", "error": err})
+    # Try multiple client strategies in order
+    strategies = [
+        ["ios"],           # iOS client — best format access, no bot check
+        ["web"],           # Plain web
+        ["android"],       # Android fallback
+        ["mweb"],          # Mobile web
+        None,              # No client hint — yt-dlp default
+    ]
+
+    last_err = None
+    for client in strategies:
+        try:
+            ydl_opts = build_ydl_opts(output_template, progress_hook, player_client=client)
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+                title = info.get("title", "audio")
+                safe_title = re.sub(r'[\\/*?:"<>|]', "", title)[:80]
+                mp3_path = os.path.join(DOWNLOAD_DIR, f"{job_id}.mp3")
+                jobs[job_id].update({
+                    "status": "done",
+                    "progress": 100,
+                    "filename": mp3_path,
+                    "title": safe_title,
+                })
+                cleanup_file(mp3_path)
+                return  # success — stop trying
+        except Exception as e:
+            last_err = str(e)
+            # Don't retry bot-check errors — cookies needed
+            if "Sign in to confirm" in last_err:
+                break
+            continue
+
+    # All strategies failed
+    err = last_err or "Unknown error"
+    if "Sign in to confirm" in err or "bot" in err.lower():
+        err = "YouTube bot-check triggered. Add a cookies.txt file — see README."
+    jobs[job_id].update({"status": "error", "error": err})
 
 
 HTML = """<!DOCTYPE html>
