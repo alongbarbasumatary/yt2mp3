@@ -25,7 +25,7 @@ def cleanup_file(path, delay=600):
 
 def build_ydl_opts(output_template, progress_hook):
     opts = {
-        "format": "bestaudio/best",
+        "format": "bestaudio/bestvideo/best",
         "outtmpl": output_template,
         "postprocessors": [{
             "key": "FFmpegExtractAudio",
@@ -51,6 +51,8 @@ def build_ydl_opts(output_template, progress_hook):
         },
         "retries": 5,
         "fragment_retries": 5,
+        "ignoreerrors": False,
+        "allow_unplayable_formats": False,
     }
     if os.path.exists(COOKIES_FILE):
         opts["cookiefile"] = COOKIES_FILE
