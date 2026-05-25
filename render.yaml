@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: yt-dlp-telegram-bot
+    runtime: docker
+    plan: starter
+    healthCheckPath: /
+    autoDeploy: true
+
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: API_ID
+        sync: false
+      - key: API_HASH
+        sync: false
+      - key: MY_CHAT_ID
+        sync: false
+      - key: SESSION_STRING
+        sync: false        # ← paste your string here
+      - key: DOWNLOAD_DIR
+        value: /tmp/downloads
